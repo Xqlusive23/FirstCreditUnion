@@ -164,6 +164,85 @@ function homeLogoAttachment() {
   ];
 }
 
+/**
+ * Use Resend's HTTP API (port 443) when RESEND_API_KEY is set, or when the
+ * SMTP settings point at smtp.resend.com with an API key as the password.
+ * Many hosts block outbound SMTP ports but always allow HTTPS.
+ */
+function resendApiKey(options: ReturnType<typeof mailTransportOptions>) {
+  const explicit = (process.env.RESEND_API_KEY || "").trim();
+  if (explicit) return explicit;
+  if (/resend\.com$/i.test(options.host) && options.pass.startsWith("re_")) {
+    return options.pass;
+  }
+  return "";
+}
+
+async function sendViaResendApi(
+  apiKey: string,
+  input: {
+    from: { name: string; address: string };
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    attachments?: Array<{ filename: string; content: Buffer; cid: string }>;
+  },
+) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const safeName = input.from.name.replace(/["<>\r\n]/g, "").trim();
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: safeName ? `${safeName} <${input.from.address}>` : input.from.address,
+        to: [input.to],
+        subject: input.subject,
+        text: input.text,
+        html: input.html,
+        attachments: input.attachments?.length
+          ? input.attachments.map((file) => ({
+              filename: file.filename,
+              content: file.content.toString("base64"),
+              content_id: file.cid,
+            }))
+          : undefined,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as
+        | { message?: string; name?: string }
+        | null;
+      const detail = body?.message || body?.name || `HTTP ${response.status}`;
+      if (response.status === 401 || response.status === 403) {
+        if (/domain|verify|not verified/i.test(detail)) {
+          throw new Error(friendlyMailError(new Error(`550 ${detail}`)));
+        }
+        throw new Error(
+          `Resend rejected the API key (${detail}). Check that RESEND_API_KEY (or SMTP_PASS) is a valid key starting with re_.`,
+        );
+      }
+      if (/domain|verify|not verified|from/i.test(detail)) {
+        throw new Error(friendlyMailError(new Error(`550 ${detail}`)));
+      }
+      throw new Error(`Resend API error: ${detail}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Resend API request timed out after 15 seconds.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function deliverHtmlEmail(
   settings: BankSettings,
   input: {
@@ -181,13 +260,27 @@ async function deliverHtmlEmail(
       "Set SMTP host, username, password, and the support from-address in Preferences or .env.",
     );
   }
-  const transporter = createTransporter(options);
   const headerAddress = extractEmail(options.from) || extractEmail(options.user);
   if (!headerAddress) {
     throw new Error(
       `Set SMTP from address to a mailbox on your verified domain, such as noreply@${MAIL_DOMAIN}.`,
     );
   }
+
+  const apiKey = resendApiKey(options);
+  if (apiKey) {
+    await sendViaResendApi(apiKey, {
+      from: { name: input.fromName, address: headerAddress },
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      attachments: input.attachHomeLogo ? homeLogoAttachment() : undefined,
+    });
+    return;
+  }
+
+  const transporter = createTransporter(options);
   const fallbackAddress = extractEmail(options.user);
   const attempts = [{ name: input.fromName, address: headerAddress }];
   if (fallbackAddress && !sameAddress(headerAddress, fallbackAddress)) {

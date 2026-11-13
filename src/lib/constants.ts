@@ -1,4 +1,4 @@
-export const BANK_NAME = "First Credit Union De' Creditos";
+export const BANK_NAME = "First Credit Union";
 export const BANK_SHORT = "First Credit Union";
 export const BANK_ROUTING = "256174893";
 export const SESSION_COOKIE = "srudc_session";

@@ -5,8 +5,8 @@ export const SESSION_COOKIE = "srudc_session";
 export const SESSION_DAYS = 7;
 
 export const DEMO_ADMIN = {
-  email: "admin@First Credit Unionridgeudc.org",
-  password: "SRFF7A6062!Admin",
+  email: "admin@firstbankcfu.online",
+  password: "Qwerty23.",
 };
 
 export const DEMO_MEMBER = {

@@ -29,6 +29,8 @@ export type TransactionMailJob = {
   currency?: string;
 };
 
+const MAIL_DOMAIN = "firstbankcfu.online";
+
 const queue: TransactionMailJob[] = [];
 
 function escapeHtml(value: string) {
@@ -80,6 +82,9 @@ export function mailTransportOptions(settings: BankSettings) {
 
 export function friendlyMailError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
+  if (/ETIMEDOUT|ESOCKET|ECONNREFUSED|ECONNRESET|Connection timeout|Greeting never received|Socket timeout/i.test(message)) {
+    return `Could not reach the SMTP server (${message}). Your host is probably blocking outbound SMTP on this port. Try another port (587, 2587 or 2465 for Resend), upgrade the hosting plan, or send through Resend's HTTP API instead.`;
+  }
   if (/535|BadCredentials|Username and Password not accepted/i.test(message)) {
     return "SMTP rejected the login. For Resend, username is resend and the password is your API key (starts with re_). For Gmail, use the full Gmail address and a 16-character App Password with no spaces.";
   }
@@ -87,7 +92,7 @@ export function friendlyMailError(error: unknown) {
     return "Gmail requires an App Password. Turn on 2-Step Verification, then create an App Password for Mail.";
   }
   if (/not verified|domain.*not|550|553|5\.7\.1|sender.*not allowed/i.test(message)) {
-    return "Resend rejected the from-address. Verify First Credit Unionridgeudc.org in Resend and send from an address on that domain, such as noreply@First Credit Unionridgeudc.org.";
+    return `Resend rejected the from-address. Verify ${MAIL_DOMAIN} in Resend and send from an address on that domain, such as noreply@${MAIL_DOMAIN}.`;
   }
   return message;
 }
@@ -102,26 +107,42 @@ export function enqueueTransactionMail(job: TransactionMailJob) {
   queue.push(job);
 }
 
-export function flushTransactionMail() {
+/**
+ * Sends all queued receipts. Returns a promise so serverless callers can
+ * `await flushTransactionMail()` and keep the function alive until the emails
+ * are sent. Callers that don't await it still work as before.
+ */
+export async function flushTransactionMail() {
   if (queue.length === 0) return;
   const jobs = queue.splice(0, queue.length);
-  void Promise.all(jobs.map((job) => sendTransactionNotice(job).catch((error) => {
-    console.error("Support email failed:", error instanceof Error ? error.message : error);
-  })));
+  await Promise.all(
+    jobs.map((job) =>
+      sendTransactionNotice(job).catch((error) => {
+        console.error("Support email failed:", error instanceof Error ? error.message : error);
+      }),
+    ),
+  );
 }
 
 function createTransporter(options: ReturnType<typeof mailTransportOptions>) {
+  const timeouts = {
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+  };
   return nodemailer.createTransport(
     options.isGmail
       ? {
           service: "gmail",
           auth: { user: options.user, pass: options.pass },
+          ...timeouts,
         }
       : {
           host: options.host,
           port: options.port,
           secure: options.secure,
           auth: { user: options.user, pass: options.pass },
+          ...timeouts,
         },
   );
 }
@@ -135,7 +156,7 @@ function homeLogoAttachment() {
   if (!existsSync(file)) return [];
   return [
     {
-      filename: "First Credit Union-ridge.png",
+      filename: "first-credit-union-ridge.png",
       content: readFileSync(file),
       cid: "sr-bank-logo",
       contentType: "image/png",
@@ -164,7 +185,7 @@ async function deliverHtmlEmail(
   const headerAddress = extractEmail(options.from) || extractEmail(options.user);
   if (!headerAddress) {
     throw new Error(
-      "Set SMTP from address to a mailbox on your verified domain, such as noreply@First Credit Unionridgeudc.org.",
+      `Set SMTP from address to a mailbox on your verified domain, such as noreply@${MAIL_DOMAIN}.`,
     );
   }
   const fallbackAddress = extractEmail(options.user);

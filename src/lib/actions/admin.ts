@@ -22,6 +22,7 @@ import {
   setMemberPassword,
   setMemberTransferPin,
   changeOwnPassword,
+  updateAccountOpenedAt,
   updateAccountStatus,
   updateLoan,
   updateMember,
@@ -247,6 +248,36 @@ export async function adminAccountStatusAction(
   }
   revalidatePath(`/admin/members/${userId}`);
   return { ok: true, message: "Account status updated." };
+}
+
+export async function adminAccountOpenedAtAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { session, error } = await requireAdmin();
+  if (!session) return { ok: false, error: error ?? "Operations access required." };
+  const userId = String(formData.get("userId") ?? "");
+  const accountId = String(formData.get("accountId") ?? "");
+  const openedAt = String(formData.get("openedAt") ?? "").trim();
+  if (!openedAt) return { ok: false, error: "Choose an opening date." };
+  const parsed = parsePostedAt(`${openedAt}T00:00:00`);
+  if (parsed.error || !parsed.value) {
+    return { ok: false, error: parsed.error ?? "Enter a valid opening date." };
+  }
+
+  try {
+    await updateAccountOpenedAt({ accountId, userId, openedAt: parsed.value });
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Could not update the opening date.",
+    };
+  }
+  revalidatePath(`/admin/members/${userId}`);
+  revalidatePath("/banking");
+  revalidatePath("/banking/accounts");
+  revalidatePath("/banking/profile");
+  return { ok: true, message: "Account opening date updated." };
 }
 
 export async function adminResetPasswordAction(

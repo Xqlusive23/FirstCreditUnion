@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Camera } from "lucide-react";
 import { AccountNumberField, BankSelect, type BankOption } from "@/components/bank-fields";
 import { FormButton } from "@/components/form-button";
 import { StatusBanner } from "@/components/status-banner";
@@ -82,10 +83,17 @@ function AccountSelect({
 
 export function MobileDepositForm({ accounts }: { accounts: Account[] }) {
   const [state, action] = useActionState(mobileDepositAction, null);
+  const [preview, setPreview] = useState<string | null>(null);
   useToastResult(state);
 
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
   return (
-    <form action={action} className="grid gap-4">
+    <form action={action} encType="multipart/form-data" className="grid gap-4">
       <StatusBanner error={state?.error} />
       <AccountSelect accounts={accounts} name="accountId" label="Deposit to" />
       <div className="grid gap-1.5">
@@ -95,6 +103,43 @@ export function MobileDepositForm({ accounts }: { accounts: Account[] }) {
       <div className="grid gap-1.5">
         <Label htmlFor="memo">Check memo</Label>
         <Input id="memo" name="memo" placeholder="Check number or payer" className="h-10" />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="checkPhoto">Check photo</Label>
+        <label
+          htmlFor="checkPhoto"
+          className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[#0B2340]/35 bg-white/70 px-4 py-3 text-sm text-[#0B2340] transition-colors hover:border-[#2F7A45] hover:bg-white"
+        >
+          <Camera className="size-5 shrink-0 text-[#2F7A45]" />
+          <span className="font-medium">
+            {preview ? "Change check photo" : "Snap a photo of your check"}
+          </span>
+          <input
+            id="checkPhoto"
+            name="checkPhoto"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            required
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              setPreview(file ? URL.createObjectURL(file) : null);
+            }}
+          />
+        </label>
+        <p className="text-xs text-[#8A938C]">
+          On a phone this opens the camera. On a computer you can choose an image
+          file. Use a clear photo of the front of the check (5 MB maximum).
+        </p>
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={preview}
+            alt="Check preview"
+            className="max-h-56 w-fit rounded-lg border border-[#d4dcd4] object-contain"
+          />
+        ) : null}
       </div>
       <FormButton className="h-10 w-fit bg-[#0B2340] text-white hover:bg-[#08182C]">
         Submit mobile deposit
@@ -307,6 +352,19 @@ export function MemberRequestList({
               >
                 Receipt
               </Link>
+              {item.checkPhotoPath ? (
+                <>
+                  {" · "}
+                  <a
+                    href={item.checkPhotoPath}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-[#2F7A45] underline-offset-4 hover:underline"
+                  >
+                    Check photo
+                  </a>
+                </>
+              ) : null}
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { normalizeCurrency, normalizeLocale } from "@/lib/i18n";
 import { parseMoneyToCents } from "@/lib/money";
-import { saveMemberPhoto } from "@/lib/persist";
+import { saveDepositPhoto, saveMemberPhoto } from "@/lib/persist";
 import {
   applyForLoan,
   createMobileDeposit,
@@ -13,6 +13,7 @@ import {
   getMemberBanking,
   getSettings,
   setDebitCardStatus,
+  setDepositPhoto,
   markNotificationsRead,
   setMemberPassword,
   setMemberPhoto,
@@ -425,6 +426,18 @@ export async function mobileDepositAction(
     return { ok: false, error: "Choose an account and enter the check amount." };
   }
 
+  const checkPhoto = formData.get("checkPhoto");
+  if (!isUploadedFile(checkPhoto) || checkPhoto.size === 0) {
+    return { ok: false, error: "Snap or choose a photo of your check." };
+  }
+  if (checkPhoto.size > 5 * 1024 * 1024) {
+    return { ok: false, error: "Check photo must be 5 MB or smaller." };
+  }
+  const photoKindValue = photoKind(checkPhoto);
+  if (!photoKindValue) {
+    return { ok: false, error: "Use a JPEG, PNG, or WebP check photo." };
+  }
+
   let receiptId = "";
   try {
     const request = await createMobileDeposit({
@@ -434,6 +447,12 @@ export async function mobileDepositAction(
       memo: String(formData.get("memo") ?? ""),
     });
     receiptId = request.id;
+    await saveDepositPhoto(
+      request.id,
+      Buffer.from(await checkPhoto.arrayBuffer()),
+      photoKindValue.contentType,
+    );
+    await setDepositPhoto(request.id, `/api/deposit-photo/${request.id}`);
   } catch (error) {
     return {
       ok: false,

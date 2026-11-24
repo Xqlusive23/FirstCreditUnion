@@ -1007,6 +1007,48 @@ export function updateAccountStatus(accountId: string, status: AccountStatus) {
   });
 }
 
+export function updateAccountOpenedAt(input: {
+  accountId: string;
+  userId: string;
+  openedAt: string;
+}) {
+  return withLock(() => {
+    const store = readStore();
+    const account = store.accounts.find((item) => item.id === input.accountId);
+    if (!account || account.userId !== input.userId) {
+      throw new Error("Account not found on this membership.");
+    }
+    const opened = new Date(input.openedAt);
+    if (Number.isNaN(opened.getTime())) {
+      throw new Error("Enter a valid opening date.");
+    }
+    account.openedAt = opened.toISOString();
+    writeStore(store);
+    return account;
+  });
+}
+
+export function getTransferOwner(transferId: string) {
+  return withLock(() => {
+    const transfer = readStore().transfers.find((item) => item.id === transferId);
+    return transfer
+      ? { userId: transfer.userId, kind: transfer.kind }
+      : null;
+  });
+}
+
+export function setDepositPhoto(depositId: string, photoPath: string) {
+  return withLock(() => {
+    const store = readStore();
+    const deposit = store.transfers.find((item) => item.id === depositId);
+    if (!deposit || deposit.kind !== "mobile_deposit") {
+      throw new Error("Mobile deposit not found.");
+    }
+    deposit.checkPhotoPath = photoPath;
+    writeStore(store);
+  });
+}
+
 export function setDebitCardStatus(cardId: string, status: CardStatus, actorId: string) {
   return withLock(() => {
     const store = readStore();
@@ -1318,6 +1360,7 @@ export function createMobileDeposit(input: {
       reviewNote: "",
       debitTransactionId: null,
       creditTransactionId: creditId,
+      checkPhotoPath: null,
     };
     if (creditId) {
       const posted = store.transactions.find((item) => item.id === creditId);

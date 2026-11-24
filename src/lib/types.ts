@@ -136,6 +136,7 @@ export type TransferRequest = {
   reviewNote: string;
   debitTransactionId: string | null;
   creditTransactionId: string | null;
+  checkPhotoPath?: string | null;
 };
 
 export type Loan = {

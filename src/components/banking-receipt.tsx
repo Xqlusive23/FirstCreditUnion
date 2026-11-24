@@ -112,6 +112,22 @@ export function BankingReceipt({
         ) : null}
       </div>
 
+      {transfer.checkPhotoPath ? (
+        <div className="px-6 pb-5">
+          <p className="text-[10px] tracking-[0.16em] text-[#8A938C] uppercase">
+            Check image
+          </p>
+          <a href={transfer.checkPhotoPath} target="_blank" rel="noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={transfer.checkPhotoPath}
+              alt="Deposited check"
+              className="mt-2 max-h-64 max-w-full rounded border border-[#e4ddd0] object-contain"
+            />
+          </a>
+        </div>
+      ) : null}
+
       <div className="grid gap-1 px-6 py-5 text-sm">
         <p>
           <span className="text-[#5C6B64]">{t(locale, "member")} </span>

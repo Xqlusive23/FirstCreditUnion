@@ -223,3 +223,75 @@ export async function loadMemberPhoto(userId: string) {
     : "image/jpeg";
   return { bytes, contentType };
 }
+
+function validDepositId(depositId: string) {
+  return /^[A-Za-z0-9_-]+$/.test(depositId);
+}
+
+function depositPhotoPathname(depositId: string) {
+  return `deposits/${depositId}/check`;
+}
+
+function localDepositFile(depositId: string) {
+  return path.join(DATA_DIR, "photos", "deposits", depositId);
+}
+
+function localDepositMeta(depositId: string) {
+  return path.join(DATA_DIR, "photos", "deposits", `${depositId}.type`);
+}
+
+export async function saveDepositPhoto(
+  depositId: string,
+  body: Buffer,
+  contentType: string,
+) {
+  if (!validDepositId(depositId)) throw new Error("Invalid deposit reference.");
+  const pathname = depositPhotoPathname(depositId);
+  const token = blobToken();
+  const dir = path.join(DATA_DIR, "photos", "deposits");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(localDepositFile(depositId), body);
+  writeFileSync(localDepositMeta(depositId), contentType);
+
+  if (token) {
+    const { put } = await import("@vercel/blob");
+    await put(pathname, body, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType,
+      token,
+    });
+  }
+  return pathname;
+}
+
+export async function loadDepositPhoto(depositId: string) {
+  if (!validDepositId(depositId)) return null;
+  const token = blobToken();
+  if (token) {
+    try {
+      const { get } = await import("@vercel/blob");
+      const result = await get(depositPhotoPathname(depositId), {
+        access: "private",
+        token,
+        useCache: false,
+      });
+      if (result?.statusCode === 200 && result.stream) {
+        const bytes = Buffer.from(await new Response(result.stream).arrayBuffer());
+        return {
+          bytes,
+          contentType: result.blob.contentType || "image/jpeg",
+        };
+      }
+    } catch (error) {
+      console.error("Deposit photo blob load failed", error);
+    }
+  }
+  if (!existsSync(localDepositFile(depositId))) return null;
+  const bytes = readFileSync(localDepositFile(depositId));
+  const contentType = existsSync(localDepositMeta(depositId))
+    ? readFileSync(localDepositMeta(depositId), "utf8")
+    : "image/jpeg";
+  return { bytes, contentType };
+}

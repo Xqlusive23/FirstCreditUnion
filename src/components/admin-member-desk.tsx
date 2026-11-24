@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import {
+  AccountOpenedForm,
   AccountStatusForm,
   ActivityEditForm,
   DeleteAccountForm,
@@ -19,7 +20,7 @@ import { StatusPill } from "@/components/shared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toListedMember } from "@/lib/admin-members";
 import type { Account, DebitCard, Loan, PublicUser, Transaction, TransferRequest } from "@/lib/types";
-import { formatAccountType, formatCardNumber, formatDate, formatMoney } from "@/lib/money";
+import { formatAccountType, formatCardNumber, formatMoney } from "@/lib/money";
 
 export function AdminMemberDesk({
   user,
@@ -197,7 +198,9 @@ export function AdminMemberDesk({
                     </p>
                   </td>
                   <td className="py-3 tabular-nums">{account.accountNumber}</td>
-                  <td className="py-3">{formatDate(account.openedAt)}</td>
+                  <td className="py-3">
+                    <AccountOpenedForm account={account} userId={user.id} />
+                  </td>
                   <td className="py-3 text-right tabular-nums">
                     {formatMoney(account.balanceCents)}
                   </td>

@@ -96,6 +96,8 @@ The app is installable as a PWA. Open the site over HTTPS (or on `localhost`) in
 - Both portals sign a user out automatically after **5 minutes of inactivity** (`src/components/idle-session.tsx`). Activity in any open tab keeps the session alive; the sign-in screen explains the timeout.
 - In the operations console, open a member's **Ledger** tab to edit a posting's date, description, counterparty, amount, and status, or void it. Existing notification records are updated to match corrections.
 - Under **Preferences → Admin sign-in**, an officer can change their username (sign-in email) and optionally their password after entering the current password.
+- **Mobile deposit** now has a camera capture control: on a phone, **Snap a photo of your check** opens the rear camera; on a computer it opens a file picker. The photo is saved with the deposit, previewed on the receipt, and viewable by the member and operations staff (`/api/deposit-photo/[depositId]`).
+- In the member desk **Accounts** tab, click the **Opened** date to change when an account was opened. This also updates the statement periods available to the member.
 
 ## If Cursor says “not a git repository”
 

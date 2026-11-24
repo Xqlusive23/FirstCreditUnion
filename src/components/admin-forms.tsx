@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  adminAccountOpenedAtAction,
   adminAccountStatusAction,
   adminAddContactAction,
   adminAdjustBalanceAction,
@@ -39,7 +40,7 @@ import {
 import { CONTACT_CHANNELS, STATEMENT_DELIVERY, contactChannelLabel } from "@/lib/contacts";
 import { LOAN_STATUSES, TRANSFER_STATUSES, transferKindLabel } from "@/lib/transfers";
 import type { Account, BankSettings, Loan, MemberContact, PublicUser, Transaction, TransferRequest } from "@/lib/types";
-import { amountToneClass, formatDateTime, formatMoney } from "@/lib/money";
+import { amountToneClass, formatDate, formatDateTime, formatMoney } from "@/lib/money";
 
 function useToastResult(state: { ok?: boolean; message?: string } | null) {
   useEffect(() => {
@@ -424,6 +425,64 @@ export function AccountStatusForm({
         <span className="text-xs text-red-600">{state.error}</span>
       ) : null}
     </form>
+  );
+}
+
+export function AccountOpenedForm({
+  account,
+  userId,
+}: {
+  account: Account;
+  userId: string;
+}) {
+  const [state, action] = useActionState(adminAccountOpenedAtAction, null);
+  const [openedAt, setOpenedAt] = useState(
+    toDateTimeLocal(account.openedAt).slice(0, 10),
+  );
+  useToastResult(state);
+
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <button
+            type="button"
+            className="text-left text-sm underline-offset-4 hover:underline"
+            title="Change opening date"
+          >
+            {formatDate(account.openedAt)}
+          </button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Account opening date</DialogTitle>
+        </DialogHeader>
+        <form action={action} className="grid gap-3">
+          <input type="hidden" name="accountId" value={account.id} />
+          <input type="hidden" name="userId" value={userId} />
+          <StatusBanner error={state?.error} />
+          <div className="grid gap-1.5">
+            <Label htmlFor={`openedAt-${account.id}`}>Opened on</Label>
+            <Input
+              id={`openedAt-${account.id}`}
+              name="openedAt"
+              type="date"
+              value={openedAt}
+              onChange={(event) => setOpenedAt(event.target.value)}
+              className="h-10"
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              This date also changes when statements become available to the member.
+            </p>
+          </div>
+          <FormButton className="h-10 w-fit bg-[#0B2340] text-white hover:bg-[#08182C]">
+            Save date
+          </FormButton>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

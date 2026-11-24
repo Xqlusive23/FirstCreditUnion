@@ -83,6 +83,20 @@ Every posted transaction — transfers, deposits, balance adjustments, refunds, 
 - **Toasts** pop up for new notifications across tabs and for transactions posted by the other role (checked every few seconds while the app is open).
 - Notices are marked read from the bell or Messages page. The notification history lives in `data/bank.json` alongside the ledger (capped at the most recent 300).
 
+## Install as a phone app (iPhone and Android)
+
+The app is installable as a PWA. Open the site over HTTPS (or on `localhost`) in Safari on iOS or Chrome on Android, then use **Share → Add to Home Screen** (iPhone) or **Install app** (Android). It launches in standalone mode without browser controls.
+
+- Manifest: `src/app/manifest.ts`; icons are in `public/icon-*.png` and `public/apple-touch-icon.png`.
+- Offline-safe app shell registration: `public/sw.js`, registered by `src/components/pwa-register.tsx`.
+- The site URL and icon can be changed in the manifest and metadata in `src/app/layout.tsx`.
+
+## Session timeout and officer controls
+
+- Both portals sign a user out automatically after **5 minutes of inactivity** (`src/components/idle-session.tsx`). Activity in any open tab keeps the session alive; the sign-in screen explains the timeout.
+- In the operations console, open a member's **Ledger** tab to edit a posting's date, description, counterparty, amount, and status, or void it. Existing notification records are updated to match corrections.
+- Under **Preferences → Admin sign-in**, an officer can change their username (sign-in email) and optionally their password after entering the current password.
+
 ## If Cursor says “not a git repository”
 
 The folder you opened has the source files but no `.git` directory (common after extracting a zip). Close that window, run `INIT-GIT-WINDOWS.bat` in the extracted folder, then **File → Open Folder** on the same folder.

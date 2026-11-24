@@ -6,7 +6,13 @@ import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = { title: "Operations console" };
 
-export default function AdminLoginPage() {
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
+  const { reason } = await searchParams;
+
   return (
     <div className="flex min-h-full flex-col bg-[#efece4]">
       <SiteHeader />
@@ -44,6 +50,12 @@ export default function AdminLoginPage() {
             <p className="mt-2 text-sm leading-relaxed text-[#5C6B64]">
               Use your operations credentials to open the membership desk.
             </p>
+            {reason === "idle" ? (
+              <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                You were signed out after 5 minutes of inactivity. Sign in to
+                continue.
+              </p>
+            ) : null}
             <div className="mt-8">
               <LoginForm role="admin" />
             </div>

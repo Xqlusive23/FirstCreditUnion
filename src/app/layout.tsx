@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Source_Sans_3, Source_Serif_4 } from "next/font/google";
+import { IdleSessionGuard } from "@/components/idle-session";
+import { PwaRegister } from "@/components/pwa-register";
 import { TransactionToaster } from "@/components/transaction-toaster";
 import { Toaster } from "@/components/ui/sonner";
 import { BANK_NAME } from "@/lib/constants";
@@ -28,6 +30,18 @@ export const metadata: Metadata = {
   },
   description:
     "E-Banking and operations console for First Credit Union.",
+  applicationName: BANK_NAME,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "FCU",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: { telephone: false },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "theme-color": "#0B2340",
+  },
   icons: {
     icon: [
       { url: "/icon.svg?v=srudc2", type: "image/svg+xml" },
@@ -35,7 +49,10 @@ export const metadata: Metadata = {
       { url: "/favicon.ico?v=srudc2", sizes: "any" },
     ],
     shortcut: "/brand-mark.png?v=srudc2",
-    apple: [{ url: "/email-mark.png?v=srudc2" }],
+    apple: [
+      { url: "/apple-touch-icon.png?v=srudc2", sizes: "180x180" },
+      { url: "/email-mark.png?v=srudc2" },
+    ],
   },
 };
 
@@ -49,6 +66,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         <Toaster theme="light" />
         <TransactionToaster />
+        <IdleSessionGuard />
+        <PwaRegister />
       </body>
     </html>
   );

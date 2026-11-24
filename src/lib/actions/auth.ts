@@ -139,6 +139,11 @@ export async function logoutAction() {
   redirect("/");
 }
 
+/** Clears the session without redirecting so the client can explain why. */
+export async function idleLogoutAction() {
+  await clearSession();
+}
+
 export async function currentSession() {
   return getSession();
 }

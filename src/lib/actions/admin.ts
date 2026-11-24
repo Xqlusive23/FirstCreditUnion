@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import {
   addMemberContact,
   adjustBalance,
+  changeAdminLogin,
   clearMemberTransferPin,
   createMember,
   deleteAccount,
@@ -553,6 +554,48 @@ export async function adminChangePasswordAction(
   return { ok: true, message: "Admin password updated. Use it the next time you sign in." };
 }
 
+export async function adminChangeLoginAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { session, error } = await requireAdmin();
+  if (!session) return { ok: false, error: error ?? "Operations access required." };
+
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const newEmail = String(formData.get("newEmail") ?? "").trim();
+  const nextPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (!currentPassword || !newEmail) {
+    return { ok: false, error: "Enter your current password and a new sign-in email." };
+  }
+  if (nextPassword || confirmPassword) {
+    if (nextPassword !== confirmPassword) {
+      return { ok: false, error: "New password and confirmation do not match." };
+    }
+    if (nextPassword.length < 8) {
+      return { ok: false, error: "Choose a password with at least 8 characters." };
+    }
+  }
+
+  try {
+    await changeAdminLogin({
+      userId: session.id,
+      currentPassword,
+      newEmail,
+      nextPassword: nextPassword || undefined,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Could not update your sign-in details.",
+    };
+  }
+
+  revalidatePath("/admin/preferences");
+  return { ok: true, message: "Admin sign-in updated." };
+}
+
 export async function adminDeleteMemberAction(
   _prev: ActionResult | null,
   formData: FormData,
@@ -653,11 +696,20 @@ export async function adminUpdateActivityAction(
   const { session, error } = await requireAdmin();
   if (!session) return { ok: false, error: error ?? "Operations access required." };
   const userId = String(formData.get("userId") ?? "");
+  const postedAt = parsePostedAt(String(formData.get("postedAt") ?? ""));
+  if (postedAt.error) return { ok: false, error: postedAt.error };
+  const amountCents = parseMoneyToCents(String(formData.get("amount") ?? ""));
+  if (amountCents === null) {
+    return { ok: false, error: "Enter a valid transaction amount." };
+  }
   try {
     await updateTransaction({
       transactionId: String(formData.get("transactionId") ?? ""),
       description: String(formData.get("description") ?? ""),
       status: String(formData.get("status") ?? "completed") as TransferStatus,
+      postedAt: postedAt.value,
+      counterparty: String(formData.get("counterparty") ?? ""),
+      amountCents,
     });
   } catch (err) {
     return {
@@ -666,6 +718,8 @@ export async function adminUpdateActivityAction(
     };
   }
   revalidatePath(`/admin/members/${userId}`);
+  revalidatePath("/banking");
+  revalidatePath("/banking/messages");
   return { ok: true, message: "Activity updated." };
 }
 

@@ -109,6 +109,40 @@ function pushNotification(store: BankStore, notification: AppNotification) {
   }
 }
 
+function transactionNotificationContent(
+  store: BankStore,
+  transaction: Transaction,
+  user: User,
+): Pick<AppNotification, "title" | "message" | "createdAt" | "href" | "tone"> | null {
+  const account = store.accounts.find(
+    (item) => item.id === transaction.accountId,
+  );
+  if (!account) return null;
+
+  const owner = store.users.find((item) => item.id === account.userId);
+  const prefs = { currency: user.currency, locale: user.locale };
+  const amount = formatMoney(Math.abs(transaction.amountCents), prefs);
+  const sign = transaction.amountCents < 0 ? "−" : "+";
+  const isAdmin = user.role === "admin";
+  const memberName = owner
+    ? `${owner.firstName} ${owner.lastName}`.trim()
+    : "Member";
+
+  return {
+    title: `${transactionLabel(transaction)} · ${sign}${amount}`,
+    message: isAdmin
+      ? `${memberName} · ${account.name} · ${transaction.description}`
+      : `${transaction.description} · ${account.name} · Balance ${formatMoney(transaction.balanceAfterCents, prefs)}`,
+    createdAt: transaction.createdAt,
+    href: isAdmin
+      ? `/admin/members/${account.userId}`
+      : transaction.transferId
+        ? `/banking/receipts/${transaction.transferId}`
+        : `/banking/accounts/${account.id}`,
+    tone: transactionTone(transaction),
+  };
+}
+
 // Every ledger entry passes through recordTransaction(), so this is the single
 // place where a posted transaction produces alerts for members and officers.
 function createTransactionNotifications(
@@ -121,54 +155,45 @@ function createTransactionNotifications(
   if (!account) return;
 
   const owner = store.users.find((item) => item.id === account.userId);
-  const label = transactionLabel(transaction);
-  const tone = transactionTone(transaction);
-  const sign = transaction.amountCents < 0 ? "−" : "+";
-
   if (owner?.role === "member") {
-    const amount = formatMoney(Math.abs(transaction.amountCents), {
-      currency: owner.currency,
-      locale: owner.locale,
-    });
-    const balance = formatMoney(transaction.balanceAfterCents, {
-      currency: owner.currency,
-      locale: owner.locale,
-    });
-    pushNotification(store, {
-      id: `tx-${transaction.id}-${owner.id}`,
-      userId: owner.id,
-      kind: "transaction",
-      title: `${label} · ${sign}${amount}`,
-      message: `${transaction.description} · ${account.name} · Balance ${balance}`,
-      createdAt: transaction.createdAt,
-      href: transaction.transferId
-        ? `/banking/receipts/${transaction.transferId}`
-        : `/banking/accounts/${account.id}`,
-      tone,
-      transactionId: transaction.id,
-    });
+    const content = transactionNotificationContent(store, transaction, owner);
+    if (content) {
+      pushNotification(store, {
+        id: `tx-${transaction.id}-${owner.id}`,
+        userId: owner.id,
+        kind: "transaction",
+        transactionId: transaction.id,
+        ...content,
+      });
+    }
   }
 
   for (const admin of store.users) {
     if (admin.role !== "admin") continue;
-    const amount = formatMoney(Math.abs(transaction.amountCents), {
-      currency: admin.currency,
-      locale: admin.locale,
-    });
-    const memberName = owner
-      ? `${owner.firstName} ${owner.lastName}`.trim()
-      : "Member";
-    pushNotification(store, {
-      id: `tx-${transaction.id}-${admin.id}`,
-      userId: admin.id,
-      kind: "transaction",
-      title: `${label} · ${sign}${amount}`,
-      message: `${memberName} · ${account.name} · ${transaction.description}`,
-      createdAt: transaction.createdAt,
-      href: `/admin/members/${account.userId}`,
-      tone,
-      transactionId: transaction.id,
-    });
+    const content = transactionNotificationContent(store, transaction, admin);
+    if (content) {
+      pushNotification(store, {
+        id: `tx-${transaction.id}-${admin.id}`,
+        userId: admin.id,
+        kind: "transaction",
+        transactionId: transaction.id,
+        ...content,
+      });
+    }
+  }
+}
+
+/** Keep existing alerts in sync when an officer corrects a posting. */
+function refreshTransactionNotifications(
+  store: BankStore,
+  transaction: Transaction,
+) {
+  for (const notification of store.notifications) {
+    if (notification.transactionId !== transaction.id) continue;
+    const user = store.users.find((item) => item.id === notification.userId);
+    if (!user) continue;
+    const content = transactionNotificationContent(store, transaction, user);
+    if (content) Object.assign(notification, content);
   }
 }
 
@@ -901,6 +926,47 @@ export function changeOwnPassword(
   });
 }
 
+/** Change an officer's sign-in email and, optionally, their password. */
+export function changeAdminLogin(input: {
+  userId: string;
+  currentPassword: string;
+  newEmail: string;
+  nextPassword?: string;
+}) {
+  return withLock(() => {
+    const store = readStore();
+    const user = store.users.find((item) => item.id === input.userId);
+    if (!user || user.role !== "admin") {
+      throw new Error("Operations account not found.");
+    }
+    if (!verifyPassword(input.currentPassword, user.passwordHash)) {
+      throw new Error("Current password is incorrect.");
+    }
+
+    const email = input.newEmail.trim().toLowerCase();
+    if (!email.includes("@")) {
+      throw new Error("Enter a valid sign-in email address.");
+    }
+    if (
+      store.users.some(
+        (item) => item.id !== user.id && item.email.toLowerCase() === email,
+      )
+    ) {
+      throw new Error("An account already uses that sign-in email.");
+    }
+
+    if (input.nextPassword) {
+      if (input.nextPassword.length < 8) {
+        throw new Error("Choose a password with at least 8 characters.");
+      }
+      user.passwordHash = hashPassword(input.nextPassword);
+    }
+    user.email = email;
+    writeStore(store);
+    return publicUser(user);
+  });
+}
+
 export function openAccount(userId: string, type: AccountType, name: string) {
   return withLock(() => {
     const store = readStore();
@@ -1414,6 +1480,9 @@ export function updateTransaction(input: {
   transactionId: string;
   description: string;
   status: TransferStatus;
+  postedAt?: string;
+  counterparty?: string;
+  amountCents?: number | null;
 }) {
   return withLock(() => {
     const store = readStore();
@@ -1421,6 +1490,15 @@ export function updateTransaction(input: {
     if (!item) throw new Error("Activity not found.");
     item.description = input.description.trim() || item.description;
     item.status = input.status;
+    if (input.postedAt) item.createdAt = input.postedAt;
+    if (input.counterparty !== undefined) {
+      item.counterparty = input.counterparty.trim() || null;
+    }
+    if (input.amountCents !== undefined && input.amountCents !== null) {
+      if (input.amountCents === 0) throw new Error("Amount cannot be zero.");
+      item.amountCents = input.amountCents;
+    }
+    refreshTransactionNotifications(store, item);
     writeStore(store);
     return item;
   });

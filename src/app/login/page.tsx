@@ -14,9 +14,9 @@ const LOGIN_CLIPS = [
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ banned?: string; pending?: string }>;
+  searchParams: Promise<{ banned?: string; pending?: string; reason?: string }>;
 }) {
-  const { banned, pending } = await searchParams;
+  const { banned, pending, reason } = await searchParams;
 
   return (
     <div className="relative flex min-h-full flex-col">
@@ -34,6 +34,12 @@ export default async function LoginPage({
             Sign in to review balances, move money, and manage your First Credit Union
             Ridge membership.
           </p>
+          {reason === "idle" ? (
+            <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+              You were signed out after 5 minutes of inactivity. Sign in to
+              continue.
+            </p>
+          ) : null}
           {banned ? (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
               This membership is banned. Login access has been restricted.

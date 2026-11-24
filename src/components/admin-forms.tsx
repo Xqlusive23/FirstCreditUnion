@@ -34,7 +34,7 @@ import {
   adminUpdateMemberAction,
   adminSendTestEmailAction,
   adminUpdateSettingsAction,
-  adminChangePasswordAction,
+  adminChangeLoginAction,
 } from "@/lib/actions/admin";
 import { CONTACT_CHANNELS, STATEMENT_DELIVERY, contactChannelLabel } from "@/lib/contacts";
 import { LOAN_STATUSES, TRANSFER_STATUSES, transferKindLabel } from "@/lib/transfers";
@@ -45,6 +45,13 @@ function useToastResult(state: { ok?: boolean; message?: string } | null) {
   useEffect(() => {
     if (state?.ok && state.message) toast.success(state.message);
   }, [state]);
+}
+
+function toDateTimeLocal(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function CreateMemberForm() {
@@ -641,14 +648,16 @@ function ContactCard({
 export function AdminPreferencesForm({
   settings,
   mailReady = false,
+  adminEmail = "",
 }: {
   settings: BankSettings;
   mailReady?: boolean;
+  adminEmail?: string;
 }) {
   const [state, action] = useActionState(adminUpdateSettingsAction, null);
   const [testState, testAction] = useActionState(adminSendTestEmailAction, null);
-  const [passwordState, passwordAction] = useActionState(
-    adminChangePasswordAction,
+  const [loginState, loginAction] = useActionState(
+    adminChangeLoginAction,
     null,
   );
   const [smartsuppKey, setSmartsuppKey] = useState(settings.smartsuppKey ?? "");
@@ -661,7 +670,7 @@ export function AdminPreferencesForm({
   });
   useToastResult(state);
   useToastResult(testState);
-  useToastResult(passwordState);
+  useToastResult(loginState);
 
   useEffect(() => {
     setSmartsuppKey(settings.smartsuppKey ?? "");
@@ -932,14 +941,14 @@ export function AdminPreferencesForm({
         Send test email
       </FormButton>
     </form>
-    <form action={passwordAction} className="grid gap-4 border-t pt-6 sm:max-w-md">
+    <form action={loginAction} className="grid gap-4 border-t pt-6 sm:max-w-md">
       <div>
-        <h2 className="font-semibold text-[#0B2340]">Admin password</h2>
+        <h2 className="font-semibold text-[#0B2340]">Admin sign-in</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Change the password for your operations console sign-in.
+          Change your operations username (sign-in email) and/or password.
         </p>
       </div>
-      <StatusBanner error={passwordState?.error} />
+      <StatusBanner error={loginState?.error} />
       <div className="grid gap-1.5">
         <Label htmlFor="currentPassword">Current password</Label>
         <Input
@@ -952,7 +961,21 @@ export function AdminPreferencesForm({
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="newPassword">New password</Label>
+        <Label htmlFor="newEmail">New username (email)</Label>
+        <Input
+          id="newEmail"
+          name="newEmail"
+          type="email"
+          defaultValue={adminEmail}
+          autoComplete="username"
+          className="h-10"
+          required
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="newPassword">
+          New password <span className="font-normal text-muted-foreground">(optional)</span>
+        </Label>
         <Input
           id="newPassword"
           name="newPassword"
@@ -960,7 +983,6 @@ export function AdminPreferencesForm({
           autoComplete="new-password"
           className="h-10"
           minLength={8}
-          required
         />
       </div>
       <div className="grid gap-1.5">
@@ -972,11 +994,13 @@ export function AdminPreferencesForm({
           autoComplete="new-password"
           className="h-10"
           minLength={8}
-          required
         />
       </div>
+      <p className="text-xs text-muted-foreground">
+        Leave both password fields blank to keep your current password.
+      </p>
       <FormButton className="h-10 w-fit bg-[#0B2340] text-white hover:bg-[#08182C]">
-        Update password
+        Update sign-in
       </FormButton>
     </form>
     </div>
@@ -1188,8 +1212,49 @@ export function ActivityEditForm({
         <input type="hidden" name="transactionId" value={transaction.id} />
         <StatusBanner error={state?.error} />
         <div className="grid gap-1.5">
-          <Label>Description</Label>
-          <Input name="description" defaultValue={transaction.description} className="h-10" />
+          <Label htmlFor={`description-${transaction.id}`}>Description</Label>
+          <Input
+            id={`description-${transaction.id}`}
+            name="description"
+            defaultValue={transaction.description}
+            className="h-10"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`postedAt-${transaction.id}`}>Transaction date</Label>
+          <Input
+            id={`postedAt-${transaction.id}`}
+            name="postedAt"
+            type="datetime-local"
+            defaultValue={toDateTimeLocal(transaction.createdAt)}
+            className="h-10"
+            required
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`counterparty-${transaction.id}`}>Counterparty</Label>
+          <Input
+            id={`counterparty-${transaction.id}`}
+            name="counterparty"
+            defaultValue={transaction.counterparty ?? ""}
+            className="h-10"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`amount-${transaction.id}`}>Amount (USD)</Label>
+          <Input
+            id={`amount-${transaction.id}`}
+            name="amount"
+            type="number"
+            step="0.01"
+            defaultValue={(transaction.amountCents / 100).toFixed(2)}
+            className="h-10"
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            Use a negative amount for money leaving the account. Account balances
+            are adjusted separately.
+          </p>
         </div>
         <fieldset className="grid gap-2">
           <legend className="text-sm font-medium text-[#0B2340]">Activity status</legend>

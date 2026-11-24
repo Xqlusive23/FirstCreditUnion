@@ -9,10 +9,12 @@ import {
 } from "@/lib/mail";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { normalizeCurrency, normalizeLocale } from "@/lib/i18n";
+import { formatMoney } from "@/lib/money";
 import type {
   Account,
   AccountStatus,
   AccountType,
+  AppNotification,
   BankSettings,
   BankStore,
   CardStatus,
@@ -21,6 +23,8 @@ import type {
   Loan,
   LoanStatus,
   LoanType,
+  NotificationItem,
+  NotificationTone,
   OutgoingPolicy,
   MemberContact,
   PublicUser,
@@ -71,6 +75,114 @@ function daysAgo(days: number, hours = 10) {
 
 function createId() {
   return crypto.randomUUID();
+}
+
+const MAX_NOTIFICATIONS = 300;
+
+function transactionLabel(transaction: Transaction) {
+  if (transaction.status === "rejected") return "Reversal";
+  switch (transaction.type) {
+    case "credit":
+      return "Deposit";
+    case "debit":
+      return "Withdrawal";
+    case "transfer_in":
+      return "Transfer received";
+    case "transfer_out":
+      return "Transfer sent";
+    case "adjustment":
+      return "Balance adjustment";
+    default:
+      return "Transaction";
+  }
+}
+
+function transactionTone(transaction: Transaction): NotificationTone {
+  if (transaction.status === "rejected") return "alert";
+  return transaction.amountCents >= 0 ? "credit" : "debit";
+}
+
+function pushNotification(store: BankStore, notification: AppNotification) {
+  store.notifications.unshift(notification);
+  if (store.notifications.length > MAX_NOTIFICATIONS) {
+    store.notifications.length = MAX_NOTIFICATIONS;
+  }
+}
+
+// Every ledger entry passes through recordTransaction(), so this is the single
+// place where a posted transaction produces alerts for members and officers.
+function createTransactionNotifications(
+  store: BankStore,
+  transaction: Transaction,
+) {
+  const account = store.accounts.find(
+    (item) => item.id === transaction.accountId,
+  );
+  if (!account) return;
+
+  const owner = store.users.find((item) => item.id === account.userId);
+  const label = transactionLabel(transaction);
+  const tone = transactionTone(transaction);
+  const sign = transaction.amountCents < 0 ? "−" : "+";
+
+  if (owner?.role === "member") {
+    const amount = formatMoney(Math.abs(transaction.amountCents), {
+      currency: owner.currency,
+      locale: owner.locale,
+    });
+    const balance = formatMoney(transaction.balanceAfterCents, {
+      currency: owner.currency,
+      locale: owner.locale,
+    });
+    pushNotification(store, {
+      id: `tx-${transaction.id}-${owner.id}`,
+      userId: owner.id,
+      kind: "transaction",
+      title: `${label} · ${sign}${amount}`,
+      message: `${transaction.description} · ${account.name} · Balance ${balance}`,
+      createdAt: transaction.createdAt,
+      href: transaction.transferId
+        ? `/banking/receipts/${transaction.transferId}`
+        : `/banking/accounts/${account.id}`,
+      tone,
+      transactionId: transaction.id,
+    });
+  }
+
+  for (const admin of store.users) {
+    if (admin.role !== "admin") continue;
+    const amount = formatMoney(Math.abs(transaction.amountCents), {
+      currency: admin.currency,
+      locale: admin.locale,
+    });
+    const memberName = owner
+      ? `${owner.firstName} ${owner.lastName}`.trim()
+      : "Member";
+    pushNotification(store, {
+      id: `tx-${transaction.id}-${admin.id}`,
+      userId: admin.id,
+      kind: "transaction",
+      title: `${label} · ${sign}${amount}`,
+      message: `${memberName} · ${account.name} · ${transaction.description}`,
+      createdAt: transaction.createdAt,
+      href: `/admin/members/${account.userId}`,
+      tone,
+      transactionId: transaction.id,
+    });
+  }
+}
+
+function notificationsForUser(
+  store: BankStore,
+  userId: string,
+): NotificationItem[] {
+  const user = store.users.find((item) => item.id === userId);
+  const read = new Set(user ? normalizeUser(user).readNotificationIds : []);
+  return store.notifications
+    .filter((item) => item.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 100)
+    .map((item) => ({ ...item, unread: !read.has(item.id) }));
 }
 
 function generateAccountNumber(used: Set<string>) {
@@ -260,6 +372,7 @@ function normalizeStore(raw: Partial<BankStore>): BankStore {
     transactions: (raw.transactions ?? []).map(normalizeTransaction),
     transfers: raw.transfers ?? [],
     loans: raw.loans ?? [],
+    notifications: Array.isArray(raw.notifications) ? raw.notifications : [],
     settings: { ...defaultSettings(), ...raw.settings },
   };
   ensureAccountCards(store);
@@ -345,6 +458,7 @@ function seedStore(): BankStore {
     transactions: [],
     transfers: [],
     loans: [],
+    notifications: [],
     settings: defaultSettings(),
   };
 }
@@ -407,6 +521,7 @@ function recordTransaction(
   receivingBankName = "",
 ) {
   store.transactions.unshift(transaction);
+  createTransactionNotifications(store, transaction);
   const account = store.accounts.find((item) => item.id === transaction.accountId);
   const owner = account
     ? store.users.find((user) => user.id === account.userId)
@@ -542,6 +657,7 @@ export function getMemberDetail(userId: string) {
       loans: store.loans
         .filter((item) => item.userId === user.id)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      notifications: notificationsForUser(store, user.id),
       totalCents: accounts.reduce(
         (sum, account) => sum + account.balanceCents,
         0,
@@ -633,11 +749,15 @@ export function createMember(input: {
   });
 }
 
+export function getNotifications(userId: string) {
+  return withLock(() => notificationsForUser(readStore(), userId));
+}
+
 export function markNotificationsRead(userId: string, ids: string[]) {
   return withLock(() => {
     const store = readStore();
     const user = store.users.find((item) => item.id === userId);
-    if (!user) throw new Error("Member not found.");
+    if (!user) throw new Error("Account not found.");
     const current = new Set(normalizeUser(user).readNotificationIds);
     for (const id of ids) current.add(id);
     user.readNotificationIds = [...current];

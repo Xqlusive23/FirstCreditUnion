@@ -12,6 +12,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { AdminNotificationsBell } from "@/components/admin-notifications";
 import { BankLogo } from "@/components/logo";
 import {
   Sheet,
@@ -20,6 +21,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { logoutAction } from "@/lib/actions/auth";
+import type { NotificationItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -44,10 +46,12 @@ function isActive(pathname: string, href: string) {
 function SidebarBody({
   user,
   pathname,
+  notifications,
   onNavigate,
 }: {
   user: { firstName: string; lastName: string };
   pathname: string;
+  notifications: NotificationItem[];
   onNavigate?: () => void;
 }) {
   const initials = `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`;
@@ -59,10 +63,10 @@ function SidebarBody({
           <BankLogo invert />
         </Link>
         <div className="mt-8 flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-full bg-white/10 text-xs font-semibold tracking-wide text-[#F4E7C5]">
+          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 text-xs font-semibold tracking-wide text-[#F4E7C5]">
             {initials}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] tracking-[0.18em] text-[#c4a574] uppercase">
               Operations
             </p>
@@ -70,6 +74,7 @@ function SidebarBody({
               {user.firstName} {user.lastName}
             </p>
           </div>
+          <AdminNotificationsBell notifications={notifications} />
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-5">
@@ -119,8 +124,10 @@ function SidebarBody({
 
 export function AdminNav({
   user,
+  notifications,
 }: {
   user: { firstName: string; lastName: string };
+  notifications: NotificationItem[];
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -137,10 +144,14 @@ export function AdminNav({
   return (
     <>
       <aside className="hidden w-72 shrink-0 flex-col bg-[#0B2340] text-white lg:flex">
-        <SidebarBody user={user} pathname={pathname} />
+        <SidebarBody
+          user={user}
+          pathname={pathname}
+          notifications={notifications}
+        />
       </aside>
 
-      <header className="sticky top-0 z-30 grid w-full min-w-0 grid-cols-[2.75rem_1fr_2.75rem] items-center bg-[#0B2340] px-2 py-2 text-white lg:hidden">
+      <header className="sticky top-0 z-30 grid w-full min-w-0 grid-cols-[2.75rem_1fr_auto] items-center gap-1 bg-[#0B2340] px-2 py-2 text-white lg:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -152,15 +163,18 @@ export function AdminNav({
         <Link href="/admin" className="min-w-0 justify-self-center">
           <BankLogo invert className="max-w-full" markClassName="h-8 w-10" />
         </Link>
-        <form action={logoutAction} className="justify-self-end">
-          <button
-            type="submit"
-            className="grid size-11 place-items-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-            aria-label="Sign out"
-          >
-            <LogOut className="size-4" />
-          </button>
-        </form>
+        <div className="flex items-center justify-self-end gap-1">
+          <AdminNotificationsBell notifications={notifications} />
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              className="grid size-10 place-items-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Sign out"
+            >
+              <LogOut className="size-4" />
+            </button>
+          </form>
+        </div>
       </header>
 
       {ready ? (
@@ -185,6 +199,7 @@ export function AdminNav({
               <SidebarBody
                 user={user}
                 pathname={pathname}
+                notifications={notifications}
                 onNavigate={() => setOpen(false)}
               />
             </div>

@@ -45,6 +45,7 @@ export default async function BankingLayout({
         status: banking.user.status,
         transfers: banking.transfers,
         loans: banking.loans,
+        notifications: banking.notifications,
         readIds: banking.user.readNotificationIds,
         locale: banking.user.locale,
         currency: banking.user.currency,

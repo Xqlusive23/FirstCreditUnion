@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Source_Sans_3, Source_Serif_4 } from "next/font/google";
+import { TransactionToaster } from "@/components/transaction-toaster";
 import { Toaster } from "@/components/ui/sonner";
 import { BANK_NAME } from "@/lib/constants";
 import "./globals.css";
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         {children}
         <Toaster theme="light" />
+        <TransactionToaster />
       </body>
     </html>
   );

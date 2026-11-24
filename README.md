@@ -74,6 +74,15 @@ The first store only includes the operations officer. Members are added from the
 - Reset a member password
 - Create a new member from the desk
 
+## In-app notifications
+
+Every posted transaction — transfers, deposits, balance adjustments, refunds, loan proceeds, and voids — creates a notification automatically:
+
+- **Members** see it in the E-Banking notification bell and on the Messages page, with the amount, account, new balance, and a link to the account or receipt.
+- **Officers** see the same posting in the operations console bell, linked to the member's record.
+- **Toasts** pop up for new notifications across tabs and for transactions posted by the other role (checked every few seconds while the app is open).
+- Notices are marked read from the bell or Messages page. The notification history lives in `data/bank.json` alongside the ledger (capped at the most recent 300).
+
 ## If Cursor says “not a git repository”
 
 The folder you opened has the source files but no `.git` directory (common after extracting a zip). Close that window, run `INIT-GIT-WINDOWS.bat` in the extracted folder, then **File → Open Folder** on the same folder.

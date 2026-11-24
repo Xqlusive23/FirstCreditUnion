@@ -178,6 +178,24 @@ export type BankSettings = {
   smtpPassword: string;
 };
 
+export type NotificationTone = "credit" | "debit" | "alert" | "info";
+
+export type AppNotification = {
+  id: string;
+  userId: string;
+  kind: "transaction" | "system";
+  title: string;
+  message: string;
+  createdAt: string;
+  href: string;
+  tone: NotificationTone;
+  transactionId: string | null;
+};
+
+export type NotificationItem = AppNotification & {
+  unread: boolean;
+};
+
 export type BankStore = {
   users: User[];
   accounts: Account[];
@@ -185,6 +203,7 @@ export type BankStore = {
   transactions: Transaction[];
   transfers: TransferRequest[];
   loans: Loan[];
+  notifications: AppNotification[];
   settings: BankSettings;
 };
 

@@ -13,6 +13,7 @@ import {
   deleteMember,
   getMemberDetail,
   getSettings,
+  markNotificationsRead,
   openAccount,
   setMemberAccess,
   setMemberOutgoingPolicy,
@@ -54,6 +55,24 @@ async function requireAdmin() {
     return { error: "Operations access required." as const, session: null };
   }
   return { session, error: null };
+}
+
+export async function adminMarkNotificationsReadAction(
+  ids: string[],
+): Promise<ActionResult> {
+  const { session, error } = await requireAdmin();
+  if (!session) return { ok: false, error: error ?? "Operations access required." };
+  if (ids.length === 0) return { ok: true };
+  try {
+    await markNotificationsRead(session.id, ids);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Could not update notifications.",
+    };
+  }
+  revalidatePath("/admin");
+  return { ok: true };
 }
 
 export async function adminUpdateMemberAction(

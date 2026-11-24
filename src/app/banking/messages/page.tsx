@@ -16,6 +16,7 @@ export default async function MessagesPage() {
     status: banking.user.status,
     transfers: banking.transfers,
     loans: banking.loans,
+    notifications: banking.notifications,
     readIds: banking.user.readNotificationIds,
     locale: banking.user.locale,
     currency: banking.user.currency,
@@ -24,7 +25,7 @@ export default async function MessagesPage() {
   return (
     <BankingScreen
       title={t(banking.user.locale, "notifications")}
-      description="Desk updates, transfer status, and security notices. Mark a notice read when you have reviewed it."
+      description="Transaction alerts, desk updates, transfer status, and security notices. Mark a notice read when you have reviewed it."
     >
       <NotificationsPageList messages={messages} />
     </BankingScreen>

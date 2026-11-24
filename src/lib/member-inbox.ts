@@ -1,6 +1,11 @@
 import { formatMoney } from "@/lib/money";
 import { loanStatusLabel, loanTypeLabel, transferKindLabel, transferStatusLabel } from "@/lib/transfers";
-import type { Loan, MemberStatus, TransferRequest } from "@/lib/types";
+import type {
+  Loan,
+  MemberStatus,
+  NotificationItem,
+  TransferRequest,
+} from "@/lib/types";
 
 export type MemberMessage = {
   id: string;
@@ -27,6 +32,7 @@ export function buildMemberInbox(input: {
   status: MemberStatus;
   transfers: TransferRequest[];
   loans: Loan[];
+  notifications?: NotificationItem[];
   readIds?: string[];
   locale?: string;
   currency?: string;
@@ -84,6 +90,31 @@ export function buildMemberInbox(input: {
       href: "/banking/loans",
       tone: "ops",
       initials: "LN",
+    });
+  }
+
+  for (const notification of input.notifications ?? []) {
+    messages.push({
+      id: notification.id,
+      title: notification.title,
+      preview: notification.message,
+      createdAt: notification.createdAt,
+      unread: notification.unread,
+      href: notification.href,
+      tone:
+        notification.tone === "alert"
+          ? "alert"
+          : notification.tone === "debit"
+            ? "person"
+            : "ops",
+      initials:
+        notification.tone === "credit"
+          ? "IN"
+          : notification.tone === "debit"
+            ? "OUT"
+            : notification.tone === "alert"
+              ? "!"
+              : "SR",
     });
   }
 
